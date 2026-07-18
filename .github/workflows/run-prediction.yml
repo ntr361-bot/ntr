@@ -1,0 +1,83 @@
+name: Run Prediction
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: "Optional target issue"
+        required: false
+        type: string
+      force:
+        description: "Overwrite an existing prediction"
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "Validate only; do not write files"
+        required: false
+        default: false
+        type: boolean
+  # GitHub cron expressions use UTC. Enable only after confirming the draw time.
+  # schedule:
+  #   - cron: "0 14 * * 2,4,6"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prediction-generation
+  cancel-in-progress: false
+
+jobs:
+  predict:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore PredictionRunner/PredictionRunner.csproj
+
+      - name: Build prediction runner
+        run: dotnet build PredictionRunner/PredictionRunner.csproj --configuration Release --no-restore
+
+      - name: Validate historical data
+        shell: pwsh
+        run: |
+          $arguments = @('--dry-run')
+          if ('${{ inputs.issue }}') { $arguments += @('--issue', '${{ inputs.issue }}') }
+          dotnet run --project PredictionRunner/PredictionRunner.csproj --configuration Release --no-build -- @arguments
+
+      - name: Generate prediction
+        if: ${{ inputs.dry_run != true }}
+        shell: pwsh
+        run: |
+          $arguments = @()
+          if ('${{ inputs.issue }}') { $arguments += @('--issue', '${{ inputs.issue }}') }
+          if ('${{ inputs.force }}' -eq 'true') { $arguments += '--force' }
+          dotnet run --project PredictionRunner/PredictionRunner.csproj --configuration Release --no-build -- @arguments
+
+      - name: Run tests
+        run: dotnet run --project Tests/六合分析软件.SmokeTests.csproj --configuration Release
+
+      - name: Commit generated files
+        if: ${{ inputs.dry_run != true }}
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/data/predictions
+          if (git diff --cached --quiet) {
+            Write-Host "No prediction changes to commit."
+            exit 0
+          }
+          $issue = (Get-Content site/data/predictions/latest.json | ConvertFrom-Json).latest_issue
+          git commit -m "chore: generate prediction for issue $issue"
+          git push origin HEAD:${{ github.ref_name }}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#18211c">
+  <title>最新预测</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">六合彩分析</p>
+        <h1 id="issue-title">最新一期预测</h1>
+      </div>
+      <button id="refresh" type="button" title="刷新最新预测" aria-label="刷新最新预测">↻</button>
+    </header>
+
+    <section id="state" class="state" aria-live="polite">正在读取最新预测...</section>
+    <section id="prediction" hidden>
+      <div class="summary">
+        <div><span>生成时间</span><strong id="generated-at">-</strong></div>
+        <div><span>运行状态</span><strong id="status">-</strong></div>
+        <div><span>数据范围</span><strong id="data-range">-</strong></div>
+        <div><span>模型版本</span><strong id="model-version">-</strong></div>
+      </div>
+
+      <div class="result-section">
+        <h2>重点生肖</h2>
+        <div id="zodiacs" class="tokens"></div>
+      </div>
+      <div class="result-section">
+        <h2>推荐号码</h2>
+        <div id="numbers" class="tokens numbers"></div>
+      </div>
+      <div class="result-section">
+        <h2>六肖参考</h2>
+        <div id="recommendations" class="tokens secondary"></div>
+      </div>
+    </section>
+  </main>
+  <script src="app.js" defer></script>
+</body>
+</html>
