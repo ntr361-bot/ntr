@@ -262,6 +262,15 @@ namespace 六合分析软件
         }
 
         /// <summary>
+        /// 将已生成或从缓存读取的结果写入 AI 预测历史。
+        /// </summary>
+        public static void SavePredictionHistory(PredictResult result)
+        {
+            ArgumentNullException.ThrowIfNull(result);
+            SaveToDatabase(result);
+        }
+
+        /// <summary>
         /// 清除缓存（用于数据更新后重新训练）
         /// </summary>
         public static void InvalidateCache()

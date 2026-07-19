@@ -21,6 +21,8 @@ namespace 六合分析软件
         Panel resultPanel;
         Panel backtestPanel;
         AIEngine.PredictResult? lastResult;
+        readonly Dictionary<int, AIEngine.PredictResult> periodResults = new();
+        static readonly int[] AllPredictionPeriods = { 50, 100, 200, 500 };
         bool initialPredictionLoaded;
 
         public ZodiacPredictForm()
@@ -70,7 +72,7 @@ namespace 六合分析软件
             topBar.Controls.Add(title);
 
             Label lblPeriods = new Label();
-            lblPeriods.Text = "分析期数：";
+            lblPeriods.Text = "查看结果：";
             lblPeriods.Font = new Font("微软雅黑", 11);
             lblPeriods.ForeColor = Color.White;
             lblPeriods.Location = new Point(350, 22);
@@ -92,10 +94,11 @@ namespace 六合分析软件
                 200 => 2,
                 _ => 3
             };
+            cboPeriods.SelectedIndexChanged += (s, e) => ShowSelectedPeriodResult();
             topBar.Controls.Add(cboPeriods);
 
             btnPredict = new Button();
-            btnPredict.Text = "🔮 开始预测";
+            btnPredict.Text = "🔄 刷新全部";
             btnPredict.Font = new Font("微软雅黑", 11, FontStyle.Bold);
             btnPredict.Size = new Size(130, 40);
             btnPredict.Location = new Point(610, 15);
@@ -106,7 +109,7 @@ namespace 六合分析软件
             topBar.Controls.Add(btnPredict);
 
             Button btnForcePredict = new Button();
-            btnForcePredict.Text = "⚡ 强制重算";
+            btnForcePredict.Text = "⚡ 重算全部";
             btnForcePredict.Font = new Font("微软雅黑", 10, FontStyle.Bold);
             btnForcePredict.Size = new Size(130, 40);
             btnForcePredict.Location = new Point(750, 15);
@@ -138,7 +141,8 @@ namespace 六合分析软件
             Button btnHelp = CreateToolButton("统计口径", 630, 65, Color.FromArgb(90, 100, 110));
             btnHelp.Click += (s, e) => MessageBox.Show(
                 "本模块只使用真实开奖记录中的特码生肖（SpecialZodiac）。\n\n" +
-                "50/100/200期表示从最新一期向前取对应数量的有效记录，6个平码不参与预测、趋势或验证。\n" +
+                "每次刷新都会自动生成50/100/200/500期四套预测，下拉框只用于切换查看结果。\n\n" +
+                "各周期表示从最新一期向前取对应数量的有效记录，6个平码不参与预测、趋势或验证。\n" +
                 "预测会按目标期号和分析周期自动留档，开奖后用实际特码生肖验证。",
                 "统计口径", MessageBoxButtons.OK, MessageBoxIcon.Information);
             topBar.Controls.Add(btnHelp);
@@ -182,7 +186,7 @@ namespace 六合分析软件
         {
             panel.Controls.Clear();
             Label welcome = new Label();
-            welcome.Text = "请选择分析期数，点击「开始预测」查看AI生肖预测结果";
+            welcome.Text = "正在自动刷新50、100、200、500期四套AI生肖预测";
             welcome.Font = new Font("微软雅黑", 13);
             welcome.ForeColor = Color.Gray;
             welcome.Location = new Point(30, 30);
@@ -190,7 +194,7 @@ namespace 六合分析软件
             panel.Controls.Add(welcome);
 
             Label hint = new Label();
-            hint.Text = "💡 预测只使用真实开奖记录中的特码生肖，综合频率、遗漏、趋势等多维度分析\n可按50期、100期、200期或500期计算，不使用平码数据";
+            hint.Text = "💡 预测只使用真实开奖记录中的特码生肖，综合频率、遗漏、趋势等多维度分析\n全部生成后，可用顶部下拉框切换查看各周期结果";
             hint.Font = new Font("微软雅黑", 10);
             hint.ForeColor = Color.Gray;
             hint.Location = new Point(30, 70);
@@ -220,13 +224,22 @@ namespace 六合分析软件
             btnPredict.Enabled = false;
             sourceButton.Enabled = false;
             string originalText = sourceButton.Text;
-            sourceButton.Text = forceRefresh ? "重新计算中…" : "读取预测中…";
+            sourceButton.Text = forceRefresh ? "重算0/4…" : "刷新0/4…";
             try
             {
-                int periodCount = GetPeriodCount();
-                var result = await AIEngine.PredictAsync(periodCount, forceRefresh);
-                lastResult = result;
-                RenderPredictResult(result);
+                periodResults.Clear();
+                for (int index = 0; index < AllPredictionPeriods.Length; index++)
+                {
+                    int periodCount = AllPredictionPeriods[index];
+                    sourceButton.Text = forceRefresh
+                        ? $"重算{index + 1}/4（{periodCount}期）"
+                        : $"刷新{index + 1}/4（{periodCount}期）";
+                    var result = await AIEngine.PredictAsync(periodCount, forceRefresh);
+                    AIEngine.SavePredictionHistory(result);
+                    periodResults[periodCount] = result;
+                }
+
+                ShowSelectedPeriodResult();
             }
             catch (Exception ex)
             {
@@ -239,6 +252,16 @@ namespace 六合分析软件
                 sourceButton.Enabled = true;
                 btnPredict.Enabled = true;
             }
+        }
+
+        private void ShowSelectedPeriodResult()
+        {
+            int selectedPeriods = GetPeriodCount();
+            if (!periodResults.TryGetValue(selectedPeriods, out var result))
+                return;
+
+            lastResult = result;
+            RenderPredictResult(result);
         }
 
         private void RenderPredictResult(AIEngine.PredictResult result)
@@ -255,7 +278,7 @@ namespace 六合分析软件
             infoLabel.MaximumSize = new Size(800, 0);
             resultPanel.Controls.Add(infoLabel);
 
-            var quality = DataCheckService.CheckSelection(GetPeriodCount());
+            var quality = DataCheckService.CheckSelection(result.AnalysisPeriods);
             Label qualityLabel = new Label();
             qualityLabel.Text = (quality.IsComplete ? "✅ " : "⚠ ") + quality.Summary + $"  |  最新：{quality.LatestPeriod}期";
             qualityLabel.Font = new Font("微软雅黑", 10, FontStyle.Bold);
@@ -468,9 +491,13 @@ namespace 六合分析软件
 
         private void ShowMultiPeriodComparison()
         {
-            int[] periods = { 50, 100, 200 };
-            var results = periods.ToDictionary(p => p, p => new ZodiacPredictEngineV2().Predict(p));
-            Form dialog = new Form { Text = "50/100/200期多周期预测对比", Size = new Size(850, 570), StartPosition = FormStartPosition.CenterParent };
+            int[] periods = AllPredictionPeriods;
+            var results = periods.ToDictionary(
+                p => p,
+                p => periodResults.TryGetValue(p, out var cached)
+                    ? cached.AllScores
+                    : new ZodiacPredictEngineV2().Predict(p).AllScores);
+            Form dialog = new Form { Text = "50/100/200/500期多周期预测对比", Size = new Size(1000, 570), StartPosition = FormStartPosition.CenterParent };
             DataGridView grid = new DataGridView
             {
                 Dock = DockStyle.Fill, ReadOnly = true, RowHeadersVisible = false,
@@ -487,12 +514,12 @@ namespace 六合分析软件
                 var ranks = new List<int>();
                 foreach (int p in periods)
                 {
-                    var sorted = results[p].AllScores.OrderByDescending(s => s.TotalScore).ToList();
+                    var sorted = results[p].OrderByDescending(s => s.TotalScore).ToList();
                     int rank = sorted.FindIndex(s => s.Zodiac == z) + 1;
                     ranks.Add(rank);
                     values.Add(rank); values.Add($"{sorted[rank - 1].TotalScore:F1}");
                 }
-                string conclusion = ranks.All(r => r <= 3) ? "三周期共同关注"
+                string conclusion = ranks.All(r => r <= 3) ? "四周期共同关注"
                     : ranks.Count(r => r <= 6) >= 2 ? "多周期关注"
                     : ranks[0] <= 3 && ranks[2] > 6 ? "短期升温" : "一般观察";
                 values.Add(conclusion);
