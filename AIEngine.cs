@@ -47,9 +47,9 @@ namespace 六合分析软件
         private static readonly SemaphoreSlim PredictionGate = new SemaphoreSlim(1, 1);
 
         public static Task<PredictResult> PredictAsync(int periodCount = 0, bool forceRefresh = false,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default, bool saveHistory = true)
         {
-            return Task.Run(() => Predict(periodCount, forceRefresh), cancellationToken);
+            return Task.Run(() => Predict(periodCount, forceRefresh, saveHistory), cancellationToken);
         }
 
         /// <summary>
@@ -69,7 +69,7 @@ namespace 六合分析软件
         /// </summary>
         /// <param name="periodCount">使用真实特码生肖数据的分析期数</param>
         /// <param name="forceRefresh">是否强制重新预测（忽略缓存）</param>
-        public static PredictResult Predict(int periodCount = 0, bool forceRefresh = false)
+        public static PredictResult Predict(int periodCount = 0, bool forceRefresh = false, bool saveHistory = true)
         {
             PredictionGate.Wait();
             try
@@ -92,7 +92,8 @@ namespace 六合分析软件
                 }
 
                 var result = RunPrediction(periods, includeExternalAnalysis: true);
-                SaveToDatabase(result);
+                if (saveHistory)
+                    SaveToDatabase(result);
 
                 _memoryCache = result;
                 _memoryCacheKey = cacheKey;

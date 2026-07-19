@@ -209,9 +209,6 @@ namespace 六合分析软件
                 SQLiteCommand predCmd = new SQLiteCommand(predSql, conn);
                 predCmd.ExecuteNonQuery();
 
-                // 同一期可分别保存50/100/200等不同分析周期的预测。
-                new SQLiteCommand("DROP INDEX IF EXISTS idx_prediction_issue", conn).ExecuteNonQuery();
-
                 // 兼容旧表结构：添加缺失的列
                 EnsureColumns(conn, "PredictionHistory",
                     "PredictNumber TEXT DEFAULT ''",
@@ -224,6 +221,19 @@ namespace 六合分析软件
                     "ActualZodiac TEXT DEFAULT ''",
                     "Top6HitResult TEXT DEFAULT ''");
 
+                // 每个期号固定保留50/100/200/500期四套结果，同期同周期只保留一条。
+                new SQLiteCommand("DROP INDEX IF EXISTS idx_prediction_issue", conn).ExecuteNonQuery();
+                new SQLiteCommand(@"DELETE FROM PredictionHistory
+                    WHERE Id NOT IN (
+                        SELECT Id FROM PredictionHistory AS current
+                        WHERE Id = (
+                            SELECT Id FROM PredictionHistory AS candidate
+                            WHERE candidate.Issue = current.Issue
+                              AND candidate.AnalysisPeriods = current.AnalysisPeriods
+                            ORDER BY candidate.Id DESC
+                            LIMIT 1
+                        )
+                    )", conn).ExecuteNonQuery();
                 new SQLiteCommand(@"CREATE UNIQUE INDEX IF NOT EXISTS idx_prediction_issue_periods
                     ON PredictionHistory(Issue, AnalysisPeriods)", conn).ExecuteNonQuery();
 

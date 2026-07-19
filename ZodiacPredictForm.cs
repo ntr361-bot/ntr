@@ -234,7 +234,7 @@ namespace 六合分析软件
                     sourceButton.Text = forceRefresh
                         ? $"重算{index + 1}/4（{periodCount}期）"
                         : $"刷新{index + 1}/4（{periodCount}期）";
-                    var result = await AIEngine.PredictAsync(periodCount, forceRefresh);
+                    var result = await AIEngine.PredictAsync(periodCount, forceRefresh, saveHistory: false);
                     AIEngine.SavePredictionHistory(result);
                     periodResults[periodCount] = result;
                 }
