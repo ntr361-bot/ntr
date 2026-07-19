@@ -61,7 +61,7 @@ dotnet run --project PredictionRunner -- --refresh-data --refresh-only
 
 ## 定时运行
 
-`.github/workflows/run-prediction.yml` 已启用每小时一次的自动检查（每小时第 17 分钟）。GitHub Actions 会抓取最新开奖；有新数据时更新数据库、生成下一期并部署网站，没有新数据时安全跳过。GitHub Actions cron 使用 **UTC**，但每小时执行不受时区换算影响，实际启动时间可能因 GitHub 队列稍有延迟。
+`.github/workflows/run-prediction.yml` 会在北京时间每天 **21:40** 自动抓取，并在 **21:55** 再重试一次。GitHub Actions 会检查最新开奖；有新数据时更新数据库、生成下一期并部署网站，没有新数据时安全跳过。配置中的 UTC cron 分别是 `40 13 * * *` 和 `55 13 * * *`，实际启动时间可能因 GitHub 队列稍有延迟。
 
 GitHub Pages 是静态网站，页面本身不会保存仓库写入密钥，因此不能安全地用“每次打开网页”直接触发写操作。定时检查保证电脑关机时仍持续更新；打开网站或点击刷新时会读取已经部署的最新一期。
 

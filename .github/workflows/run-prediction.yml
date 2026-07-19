@@ -22,9 +22,10 @@ on:
         required: false
         default: true
         type: boolean
-  # 每小时第17分钟检查一次，避开整点拥堵。GitHub cron 使用 UTC。
+  # 北京时间每天21:40抓取，21:55再重试一次。GitHub cron 使用 UTC。
   schedule:
-    - cron: "17 * * * *"
+    - cron: "40 13 * * *"
+    - cron: "55 13 * * *"
 
 permissions:
   contents: write
