@@ -16,6 +16,13 @@ try
         ?? Path.Combine(repositoryRoot, "site", "data", "predictions");
     Environment.SetEnvironmentVariable("LIUHE_DATA_DIR", dataDirectory);
 
+    if (arguments.ContainsKey("refresh-data"))
+    {
+        await LotteryDataRefresh.RefreshAsync(arguments.ContainsKey("dry-run"));
+        if (arguments.ContainsKey("refresh-only"))
+            return 0;
+    }
+
     long? issue = null;
     if (arguments.TryGetValue("issue", out string? issueText))
     {
@@ -55,6 +62,8 @@ static Dictionary<string, string?> ParseArguments(string[] values)
                 break;
             case "--force": parsed["force"] = null; break;
             case "--dry-run": parsed["dry-run"] = null; break;
+            case "--refresh-data": parsed["refresh-data"] = null; break;
+            case "--refresh-only": parsed["refresh-only"] = null; break;
             case "--help":
             case "-h": parsed["help"] = null; break;
             default: throw new ArgumentException($"未知参数：{value}");
@@ -65,5 +74,5 @@ static Dictionary<string, string?> ParseArguments(string[] values)
 
 static void PrintUsage()
 {
-    Console.WriteLine("用法：dotnet run --project PredictionRunner -- [--issue 199] [--force] [--dry-run]");
+    Console.WriteLine("用法：dotnet run --project PredictionRunner -- [--issue 199] [--force] [--dry-run] [--refresh-data] [--refresh-only]");
 }

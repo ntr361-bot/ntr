@@ -32,6 +32,7 @@ namespace 六合分析软件
             public int NewCount { get; set; }
             public int TotalCount { get; set; }
             public int DbTotal { get; set; }
+            public string RemoteLatestPeriod { get; set; } = "";
         }
 
         /// <summary>
@@ -127,6 +128,10 @@ namespace 六合分析软件
                 }
 
                 result.TotalCount = records.Count;
+                ValidateCrawlRecords(records);
+                result.RemoteLatestPeriod = records
+                    .OrderByDescending(r => long.TryParse(r.Period, out long issue) ? issue : 0)
+                    .First().Period;
 
                 // 测试模式：只返回解析结果，不保存
                 if (isTest)
@@ -184,6 +189,40 @@ namespace 六合分析软件
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// 保存前严格校验第三方数据，避免损坏或不完整响应进入正式历史库。
+        /// </summary>
+        public static void ValidateCrawlRecords(IReadOnlyCollection<CrawlRecord> records)
+        {
+            if (records.Count == 0)
+                throw new InvalidDataException("开奖 API 没有返回任何记录");
+
+            string[] validZodiacs = { "鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪" };
+            var issues = new HashSet<long>();
+            foreach (CrawlRecord record in records)
+            {
+                if (!long.TryParse(record.Period, out long issue) || issue <= 0)
+                    throw new InvalidDataException($"开奖 API 返回非法期号：{record.Period}");
+                if (!issues.Add(issue))
+                    throw new InvalidDataException($"开奖 API 返回重复期号：{issue}");
+                if (record.Numbers.Length != 12 || !record.Numbers.All(char.IsDigit))
+                    throw new InvalidDataException($"第{issue}期前六个号码格式无效：{record.Numbers}");
+                int[] regularNumbers = Enumerable.Range(0, 6)
+                    .Select(index => int.Parse(record.Numbers.Substring(index * 2, 2)))
+                    .ToArray();
+                if (regularNumbers.Any(number => number is < 1 or > 49) || regularNumbers.Distinct().Count() != 6)
+                    throw new InvalidDataException($"第{issue}期前六个号码范围或重复校验失败");
+                if (!int.TryParse(record.SpecialNumber, out int specialNumber) || specialNumber is < 1 or > 49)
+                    throw new InvalidDataException($"第{issue}期特码无效：{record.SpecialNumber}");
+                if (regularNumbers.Contains(specialNumber))
+                    throw new InvalidDataException($"第{issue}期特码与前六个号码重复");
+                if (!validZodiacs.Contains(record.SpecialZodiac))
+                    throw new InvalidDataException($"第{issue}期特码生肖无效：{record.SpecialZodiac}");
+                if (!DateTimeOffset.TryParse(record.Date, out _))
+                    throw new InvalidDataException($"第{issue}期开奖时间无效：{record.Date}");
+            }
         }
 
         private static async Task<List<CrawlRecord>> FetchRecentRecordsAsync(int periods, CancellationToken cancellationToken)

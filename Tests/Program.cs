@@ -22,7 +22,9 @@ var tests = new (string Name, Action Run)[]
     ("输出 JSON 校验", OutputJsonIsValid),
     ("latest.json 更新", LatestJsonUpdates),
     ("重复期号检测", DuplicateIssueFails),
-    ("dry-run 不修改文件", DryRunDoesNotWrite)
+    ("dry-run 不修改文件", DryRunDoesNotWrite),
+    ("有效抓取数据校验", ValidCrawlDataPasses),
+    ("损坏抓取数据拒绝", InvalidCrawlDataFails)
 };
 
 int failures = 0;
@@ -155,6 +157,34 @@ void DryRunDoesNotWrite()
     PredictionAutomation.Run(new() { OutputDirectory = output, DryRun = true });
     Assert(!Directory.EnumerateFileSystemEntries(output).Any(), "dry-run 不应写文件");
 }
+
+void ValidCrawlDataPasses()
+{
+    DataCrawler.ValidateCrawlRecords(new[]
+    {
+        new DataCrawler.CrawlRecord
+        {
+            Period = "2026103",
+            Numbers = "010203040506",
+            SpecialNumber = "07",
+            SpecialZodiac = "马",
+            Date = "2026-07-19 21:30:00"
+        }
+    });
+}
+
+void InvalidCrawlDataFails() => AssertThrows<InvalidDataException>(() =>
+    DataCrawler.ValidateCrawlRecords(new[]
+    {
+        new DataCrawler.CrawlRecord
+        {
+            Period = "2026103",
+            Numbers = "010203040506",
+            SpecialNumber = "06",
+            SpecialZodiac = "马",
+            Date = "2026-07-19 21:30:00"
+        }
+    }), "与前六个号码重复的特码应被拒绝");
 
 AIEngine.PredictResult FakePrediction(long issue) => new()
 {

@@ -20,12 +20,15 @@ dotnet run --project PredictionRunner -- --dry-run
 dotnet run --project PredictionRunner --
 dotnet run --project PredictionRunner -- --issue 2026199
 dotnet run --project PredictionRunner -- --force
+dotnet run --project PredictionRunner -- --refresh-data --refresh-only
 ```
 
 - 默认：根据最新开奖自动生成下一期。
 - `--issue`：指定完整期号。当前数据采用 `2026198` 这种格式，因此下一期是 `2026199`，不是裸 `199`。
 - `--force`：覆盖已存在的预测文件。
 - `--dry-run`：只校验数据和目标期号，不运行模型、不写文件。
+- `--refresh-data`：预测前从开奖 API 抓取、严格校验并更新历史数据库。
+- `--refresh-only`：只更新历史数据，不运行预测；通常与 `--refresh-data` 一起使用。
 
 结果先写入同目录临时文件，成功解析并校验后才替换正式 JSON；中断不会留下半个文件。
 
@@ -35,7 +38,7 @@ dotnet run --project PredictionRunner -- --force
 2. 点击 **Actions**。
 3. 选择 **Run Prediction**。
 4. 点击 **Run workflow**。
-5. 可选填写完整 `issue`，或选择 `force` / `dry_run`。
+5. 可选填写完整 `issue`，或选择 `force` / `dry_run`；`refresh_data` 默认保持开启。
 6. 等待工作流完成，再打开 GitHub Pages 网站查看最新预测。
 
 工作流有 `contents: write` 权限，只在预测文件确有变化时提交，提交信息为 `chore: generate prediction for issue <期号>`。并发组 `prediction-generation` 会避免两次点击同时写文件。
@@ -52,11 +55,15 @@ dotnet run --project PredictionRunner -- --force
 
 ## 历史数据更新
 
-云端运行不读取个人电脑，它读取仓库中的 `data/history.db`。新增开奖记录后，必须先把更新后的数据库快照提交到这个路径，再生成下一期预测。当前工作流没有启用自动爬取，以避免依赖不稳定的第三方数据源或 VPN。
+云端运行不读取个人电脑。`Run Prediction` 默认先调用现有开奖 API，将通过校验的新记录事务写入 `data/history.db`，再生成下一期预测，并把数据库和预测 JSON 一起提交。API 无响应、数据为空、期号落后、号码重复、号码越界、生肖或日期无效时，工作流会停止，不会用损坏数据生成预测。
+
+第三方数据源可能更换地址或限制 GitHub 服务器访问。遇到这种情况，Actions 日志会明确显示“开奖数据抓取失败”，历史数据库和网站预测保持原状。
 
 ## 定时运行
 
-`.github/workflows/run-prediction.yml` 中预留了注释的 `schedule`。开奖时间确认后再取消注释并修改 cron；GitHub Actions cron 一律使用 **UTC**，不是北京时间。
+`.github/workflows/run-prediction.yml` 已启用每小时一次的自动检查（每小时第 17 分钟）。GitHub Actions 会抓取最新开奖；有新数据时更新数据库、生成下一期并部署网站，没有新数据时安全跳过。GitHub Actions cron 使用 **UTC**，但每小时执行不受时区换算影响，实际启动时间可能因 GitHub 队列稍有延迟。
+
+GitHub Pages 是静态网站，页面本身不会保存仓库写入密钥，因此不能安全地用“每次打开网页”直接触发写操作。定时检查保证电脑关机时仍持续更新；打开网站或点击刷新时会读取已经部署的最新一期。
 
 ## 常见问题
 

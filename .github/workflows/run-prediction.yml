@@ -17,9 +17,14 @@ on:
         required: false
         default: false
         type: boolean
-  # GitHub cron expressions use UTC. Enable only after confirming the draw time.
-  # schedule:
-  #   - cron: "0 14 * * 2,4,6"
+      refresh_data:
+        description: "Fetch and validate the latest draw data before prediction"
+        required: false
+        default: true
+        type: boolean
+  # 每小时第17分钟检查一次，避开整点拥堵。GitHub cron 使用 UTC。
+  schedule:
+    - cron: "17 * * * *"
 
 permissions:
   contents: write
@@ -48,6 +53,14 @@ jobs:
       - name: Build prediction runner
         run: dotnet build PredictionRunner/PredictionRunner.csproj --configuration Release --no-restore
 
+      - name: Refresh latest draw data
+        if: ${{ github.event_name == 'schedule' || inputs.refresh_data == true }}
+        shell: pwsh
+        run: |
+          $arguments = @('--refresh-data', '--refresh-only')
+          if ('${{ inputs.dry_run }}' -eq 'true') { $arguments += '--dry-run' }
+          dotnet run --project PredictionRunner/PredictionRunner.csproj --configuration Release --no-build -- @arguments
+
       - name: Validate historical data
         shell: pwsh
         run: |
@@ -73,11 +86,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add site/data/predictions
+          git add data/history.db site/data/predictions
           if (git diff --cached --quiet) {
             Write-Host "No prediction changes to commit."
             exit 0
           }
           $issue = (Get-Content site/data/predictions/latest.json | ConvertFrom-Json).latest_issue
-          git commit -m "chore: generate prediction for issue $issue"
+          git commit -m "chore: update draw data and prediction for issue $issue"
           git push origin HEAD:${{ github.ref_name }}
