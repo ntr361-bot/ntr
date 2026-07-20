@@ -30,6 +30,7 @@ namespace 六合分析软件
         RadioButton rbDownload500;
 
         // AI 预测缓存（统一使用 AIEngine）
+        const int HomePredictionPeriods = 100;
         AIEngine.PredictResult? _cachedPredict;
         bool _predictionLoading;
 
@@ -235,7 +236,7 @@ namespace 六合分析软件
             mainPanel.Controls.Add(section2);
 
             Label s2Title = new Label();
-            s2Title.Text = "🤖 生肖预测 - " + AIEngine.Version;
+            s2Title.Text = $"🤖 生肖预测（100期） - {AIEngine.Version}";
             s2Title.Font = new Font("微软雅黑", 12, FontStyle.Bold);
             s2Title.ForeColor = Color.FromArgb(155, 89, 182);
             s2Title.Location = new Point(15, 10);
@@ -719,7 +720,7 @@ namespace 六合分析软件
         {
             try
             {
-                _cachedPredict ??= await AIEngine.PredictAsync();
+                _cachedPredict ??= await AIEngine.PredictAsync(HomePredictionPeriods);
             }
             catch (Exception ex)
             {
