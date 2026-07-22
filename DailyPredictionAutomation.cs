@@ -124,13 +124,28 @@ public static class DailyPredictionAutomation
     {
         long[] issues = EnumerateIssues(directory).Distinct().OrderBy(issue => issue).ToArray();
         if (issues.Length == 0) throw new InvalidDataException("没有可写入清单的预测记录");
+        string updatedAt = DateTimeOffset.Now.ToString("O");
         string path = Path.Combine(directory, "manifest.json");
         AtomicWrite(path, new
         {
             status = "success",
-            updated_at = DateTimeOffset.Now.ToString("O"),
+            updated_at = updatedAt,
             latest_issue = issues[^1],
             records = issues.Select(issue => $"{issue}.json").ToArray()
+        });
+
+        JsonElement[] predictions = issues.Select(issue =>
+        {
+            using JsonDocument document = JsonDocument.Parse(
+                File.ReadAllBytes(Path.Combine(directory, $"{issue}.json")));
+            return document.RootElement.Clone();
+        }).ToArray();
+        AtomicWrite(Path.Combine(directory, "history.json"), new
+        {
+            status = "success",
+            updated_at = updatedAt,
+            latest_issue = issues[^1],
+            predictions
         });
         return path;
     }

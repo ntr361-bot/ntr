@@ -18,6 +18,20 @@ try
         ?? Path.Combine(repositoryRoot, "site", "data", "daily-records");
     Environment.SetEnvironmentVariable("LIUHE_DATA_DIR", dataDirectory);
 
+    if (arguments.ContainsKey("evaluate-models"))
+    {
+        DatabaseHelper.InitializeDatabase();
+        string report = HonestModelEvaluationService.GenerateReport();
+        string outputPath = arguments.TryGetValue("report-output", out string? configuredOutput) &&
+            !string.IsNullOrWhiteSpace(configuredOutput)
+            ? Path.GetFullPath(configuredOutput)
+            : Path.Combine(repositoryRoot, "model-evaluation-report.txt");
+        File.WriteAllText(outputPath, report, System.Text.Encoding.UTF8);
+        Console.WriteLine(report);
+        Console.WriteLine($"[SUCCESS] 真实验算报告：{outputPath}");
+        return 0;
+    }
+
     if (arguments.ContainsKey("refresh-data"))
     {
         await LotteryDataRefresh.RefreshAsync(arguments.ContainsKey("dry-run"));
@@ -76,6 +90,11 @@ static Dictionary<string, string?> ParseArguments(string[] values)
             case "--refresh-data": parsed["refresh-data"] = null; break;
             case "--refresh-only": parsed["refresh-only"] = null; break;
             case "--generate-all": parsed["generate-all"] = null; break;
+            case "--evaluate-models": parsed["evaluate-models"] = null; break;
+            case "--report-output":
+                if (++i >= values.Length) throw new ArgumentException("--report-output 缺少路径");
+                parsed["report-output"] = values[i];
+                break;
             case "--help":
             case "-h": parsed["help"] = null; break;
             default: throw new ArgumentException($"未知参数：{value}");
@@ -86,5 +105,5 @@ static Dictionary<string, string?> ParseArguments(string[] values)
 
 static void PrintUsage()
 {
-    Console.WriteLine("用法：dotnet run --project PredictionRunner -- [--issue 199] [--force] [--dry-run] [--refresh-data] [--refresh-only] [--generate-all]");
+    Console.WriteLine("用法：dotnet run --project PredictionRunner -- [--issue 199] [--force] [--dry-run] [--refresh-data] [--refresh-only] [--generate-all] [--evaluate-models] [--report-output 路径]");
 }

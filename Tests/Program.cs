@@ -32,6 +32,7 @@ var tests = new (string Name, Action Run)[]
     ,("预测清单包含全部期号", PredictionManifestContainsAllIssues)
     ,("云端预测导入四周期历史", CloudPredictionImportsFourPeriods)
     ,("云端开奖档案导出", CloudHistoryExportIsValid)
+    ,("纯内存回测排序只使用传入历史", InMemoryRankingUsesProvidedHistory)
 };
 
 int failures = 0;
@@ -239,6 +240,8 @@ void PredictionManifestContainsAllIssues()
     JsonElement records = document.RootElement.GetProperty("records");
     Assert(records.GetArrayLength() == 2, "清单应包含所有已保存预测期号");
     Assert(document.RootElement.GetProperty("latest_issue").GetInt64() == 2026203, "清单最新期号错误");
+    using JsonDocument history = JsonDocument.Parse(File.ReadAllText(Path.Combine(output, "history.json")));
+    Assert(history.RootElement.GetProperty("predictions").GetArrayLength() == 2, "预测历史页面档案应包含全部期号");
 }
 
 void CloudPredictionImportsFourPeriods()
@@ -274,6 +277,19 @@ void CloudHistoryExportIsValid()
     using JsonDocument document = JsonDocument.Parse(File.ReadAllText(output));
     Assert(document.RootElement.GetProperty("status").GetString() == "success", "开奖档案状态错误");
     Assert(document.RootElement.GetProperty("records").GetArrayLength() >= 3, "开奖档案记录不完整");
+}
+
+void InMemoryRankingUsesProvidedHistory()
+{
+    var records = new List<DatabaseHelper.HistoryRecord>();
+    for (int i = 0; i < 30; i++)
+        records.Add(History((300 - i).ToString(), ((i % 49) + 1).ToString("00"), i % 2 == 0 ? "鼠" : "牛"));
+
+    var first = ZodiacPredictEngineV2.RankHistory(records);
+    var second = ZodiacPredictEngineV2.RankHistory(records);
+    Assert(first.Count == 12, "应对12生肖完成排序");
+    Assert(first.Select(item => item.zodiac).SequenceEqual(second.Select(item => item.zodiac)),
+        "相同传入历史应产生相同排序");
 }
 
 AIEngine.PredictResult FakePrediction(long issue) => new()

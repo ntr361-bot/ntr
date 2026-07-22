@@ -160,6 +160,36 @@ namespace 六合分析软件
             return result;
         }
 
+        /// <summary>
+        /// 使用调用方提供的既往记录进行纯内存排序，供严格按时间切分的回测使用。
+        /// 输入必须按最新到最旧排列，方法不会读取数据库或写入预测历史。
+        /// </summary>
+        public static List<(string zodiac, double score)> RankHistory(
+            IReadOnlyList<DatabaseHelper.HistoryRecord> newestFirstHistory,
+            WeightConfig? weights = null)
+        {
+            var engine = new ZodiacPredictEngineV2();
+            var zodiacData = newestFirstHistory
+                .Where(record => !string.IsNullOrWhiteSpace(record.SpecialZodiac))
+                .Select(record => record.SpecialZodiac)
+                .ToList();
+
+            if (zodiacData.Count == 0)
+                return new List<(string zodiac, double score)>();
+
+            WeightConfig selectedWeights = weights ?? engine.LoadBestWeights(zodiacData);
+            var scores = ZodiacOrder
+                .Select(zodiac => engine.CalculateZodiacScoreV2(zodiac, zodiacData, selectedWeights))
+                .ToList();
+            engine.ApplyEightZodiacRule(scores, zodiacData[0]);
+
+            return scores
+                .OrderByDescending(score => score.TotalScore)
+                .ThenBy(score => score.Zodiac)
+                .Select(score => (score.Zodiac, score.TotalScore))
+                .ToList();
+        }
+
         // ===== 多维度评分 =====
         private ZodiacScoreV2 CalculateZodiacScoreV2(string zodiac, List<string> zodiacData, WeightConfig weights)
         {
