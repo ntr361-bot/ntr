@@ -908,6 +908,38 @@ namespace 六合分析软件
             }
         }
 
+        public static void SaveCloudPrediction(string issue, string predictTime, string predictZodiac,
+            string top6Zodiac, string predictNumber, string modelVersion, int analysisPeriods,
+            string scoreDetails)
+        {
+            using SQLiteConnection conn = GetConnection();
+            string predictionGroupId = GetPredictionGroupId(issue);
+            using SQLiteCommand cmd = new SQLiteCommand(@"
+                INSERT INTO PredictionHistory
+                (Issue, PredictionGroupId, PredictTime, PredictNumber, PredictZodiac, Top6Zodiac,
+                 AnalysisPeriods, ScoreDetails, ModelVersion, HitResult, Top6HitResult)
+                VALUES (@issue, @groupId, @time, @num, @zodiac, @top6, @periods, @scores, @model,
+                        '未开奖', '未开奖')
+                ON CONFLICT(Issue, AnalysisPeriods) DO UPDATE SET
+                    PredictionGroupId=excluded.PredictionGroupId,
+                    PredictTime=excluded.PredictTime,
+                    PredictNumber=excluded.PredictNumber,
+                    PredictZodiac=excluded.PredictZodiac,
+                    Top6Zodiac=excluded.Top6Zodiac,
+                    ScoreDetails=excluded.ScoreDetails,
+                    ModelVersion=excluded.ModelVersion", conn);
+            cmd.Parameters.AddWithValue("@issue", issue);
+            cmd.Parameters.AddWithValue("@groupId", predictionGroupId);
+            cmd.Parameters.AddWithValue("@time", predictTime);
+            cmd.Parameters.AddWithValue("@num", predictNumber);
+            cmd.Parameters.AddWithValue("@zodiac", predictZodiac);
+            cmd.Parameters.AddWithValue("@top6", top6Zodiac);
+            cmd.Parameters.AddWithValue("@periods", analysisPeriods);
+            cmd.Parameters.AddWithValue("@scores", scoreDetails);
+            cmd.Parameters.AddWithValue("@model", modelVersion);
+            cmd.ExecuteNonQuery();
+        }
+
         /// <summary>
         /// 验证预测结果（开奖后自动匹配）
         /// </summary>

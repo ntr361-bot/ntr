@@ -29,6 +29,9 @@ var tests = new (string Name, Action Run)[]
     ("全功能dry-run不写文件", DailyDryRunDoesNotWrite),
     ("有效抓取数据校验", ValidCrawlDataPasses),
     ("损坏抓取数据拒绝", InvalidCrawlDataFails)
+    ,("预测清单包含全部期号", PredictionManifestContainsAllIssues)
+    ,("云端预测导入四周期历史", CloudPredictionImportsFourPeriods)
+    ,("云端开奖档案导出", CloudHistoryExportIsValid)
 };
 
 int failures = 0;
@@ -225,6 +228,53 @@ void InvalidCrawlDataFails() => AssertThrows<InvalidDataException>(() =>
             Date = "2026-07-19 21:30:00"
         }
     }), "与前六个号码重复的特码应被拒绝");
+
+void PredictionManifestContainsAllIssues()
+{
+    string output = FreshDirectory();
+    File.WriteAllText(Path.Combine(output, "2026201.json"), "{}");
+    File.WriteAllText(Path.Combine(output, "2026203.json"), "{}");
+    string manifest = DailyPredictionAutomation.UpdateManifest(output);
+    using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest));
+    JsonElement records = document.RootElement.GetProperty("records");
+    Assert(records.GetArrayLength() == 2, "清单应包含所有已保存预测期号");
+    Assert(document.RootElement.GetProperty("latest_issue").GetInt64() == 2026203, "清单最新期号错误");
+}
+
+void CloudPredictionImportsFourPeriods()
+{
+    var prediction = new CloudDailyPrediction
+    {
+        Issue = 2026203,
+        GeneratedAt = "2026-07-22T22:00:00+08:00",
+        Status = "success",
+        AiZodiac = new Dictionary<string, CloudAiPrediction>()
+    };
+    foreach (int period in new[] { 50, 100, 200, 500 })
+    {
+        prediction.AiZodiac[period.ToString()] = new CloudAiPrediction
+        {
+            Top3 = new() { "马", "蛇", "龙" },
+            Top6 = new() { "马", "蛇", "龙", "兔", "虎", "牛" },
+            Numbers = new() { 1, 2, 3 },
+            Confidence = "中",
+            BestModel = "测试模型"
+        };
+    }
+    Assert(CloudPredictionSyncService.ImportPrediction(prediction) == 4, "应导入四个分析周期");
+    int count = DatabaseHelper.GetPredictionHistory(int.MaxValue)
+        .Count(record => record.Issue == "2026203");
+    Assert(count == 4, "本地每期应保存四条固定周期记录");
+}
+
+void CloudHistoryExportIsValid()
+{
+    string output = Path.Combine(FreshDirectory(), "history.json");
+    CloudHistoryAutomation.Export(output);
+    using JsonDocument document = JsonDocument.Parse(File.ReadAllText(output));
+    Assert(document.RootElement.GetProperty("status").GetString() == "success", "开奖档案状态错误");
+    Assert(document.RootElement.GetProperty("records").GetArrayLength() >= 3, "开奖档案记录不完整");
+}
 
 AIEngine.PredictResult FakePrediction(long issue) => new()
 {

@@ -22,6 +22,7 @@ namespace 六合分析软件
         Button btnCheck;
 
         Label titleLabel;
+        Label cloudSyncLabel;
         TextBox txtNumber;
         Button btnSaveHistory;
         Label saveStatus;
@@ -33,6 +34,8 @@ namespace 六合分析软件
         const int HomePredictionPeriods = 100;
         AIEngine.PredictResult? _cachedPredict;
         bool _predictionLoading;
+        bool _cloudSyncRunning;
+        System.Windows.Forms.Timer? _cloudSyncTimer;
 
         public Form1()
         {
@@ -41,6 +44,7 @@ namespace 六合分析软件
 
             // 恢复窗口位置
             this.Load += (s, e) => RestoreWindowPosition();
+            this.Shown += async (s, e) => await SyncCloudDataAsync();
             this.FormClosing += (s, e) => SaveWindowPosition();
         }
 
@@ -89,6 +93,18 @@ namespace 六合分析软件
             titleLabel.AutoSize = true;
 
             this.Controls.Add(titleLabel);
+
+            cloudSyncLabel = new Label();
+            cloudSyncLabel.Text = "云端数据：等待同步";
+            cloudSyncLabel.Font = new Font("微软雅黑", 9);
+            cloudSyncLabel.ForeColor = Color.DimGray;
+            cloudSyncLabel.Location = new Point(302, 62);
+            cloudSyncLabel.AutoSize = true;
+            this.Controls.Add(cloudSyncLabel);
+
+            _cloudSyncTimer = new System.Windows.Forms.Timer { Interval = 15 * 60 * 1000 };
+            _cloudSyncTimer.Tick += async (s, e) => await SyncCloudDataAsync();
+            _cloudSyncTimer.Start();
 
             // 左侧菜单
             menuPanel = new Panel();
@@ -149,6 +165,39 @@ namespace 六合分析软件
             };
 
             ShowHome();
+        }
+
+        private async Task SyncCloudDataAsync()
+        {
+            if (_cloudSyncRunning) return;
+            _cloudSyncRunning = true;
+            cloudSyncLabel.Text = "云端数据：正在补齐开奖记录和预测历史...";
+            cloudSyncLabel.ForeColor = Color.FromArgb(36, 116, 210);
+            try
+            {
+                CloudSyncResult result = await CloudPredictionSyncService.SyncAsync();
+                cloudSyncLabel.Text = $"云端同步完成：开奖{result.LatestDrawIssue}期，预测{result.LatestPredictionIssue}期（{result.PredictionFileCount}期档案）";
+                cloudSyncLabel.ForeColor = Color.FromArgb(15, 140, 91);
+                AppLogger.Info("云端自动同步", cloudSyncLabel.Text);
+            }
+            catch (Exception cloudError)
+            {
+                AppLogger.Error("云端档案同步失败", cloudError);
+                try
+                {
+                    LotteryRefreshResult fallback = await LotteryDataRefresh.RefreshAsync(false);
+                    DatabaseHelper.BatchVerifyAIPredicts();
+                    cloudSyncLabel.Text = $"开奖数据已更新到{fallback.LocalIssueAfter}期；预测档案稍后重试";
+                    cloudSyncLabel.ForeColor = Color.FromArgb(180, 108, 0);
+                }
+                catch (Exception refreshError)
+                {
+                    AppLogger.Error("启动自动更新失败", refreshError);
+                    cloudSyncLabel.Text = "云端同步失败，已保留电脑现有数据，15分钟后重试";
+                    cloudSyncLabel.ForeColor = Color.Firebrick;
+                }
+            }
+            finally { _cloudSyncRunning = false; }
         }
 
         private Button CreateButton(string text, int y)

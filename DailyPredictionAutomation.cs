@@ -80,6 +80,7 @@ public static class DailyPredictionAutomation
 
         AtomicWrite(outputFile, document);
         UpdateLatest(outputDirectory, targetIssue, document.generated_at);
+        UpdateManifest(outputDirectory);
         Console.WriteLine($"[SUCCESS] 第{targetIssue}期全部预测结果已保存");
         return outputFile;
     }
@@ -115,7 +116,23 @@ public static class DailyPredictionAutomation
             }
         }
         if (targets.Length == 0) Console.WriteLine("[SUCCESS] 所有预测功能的每期记录已齐全");
+        if (!dryRun) UpdateManifest(outputDirectory);
         return targets;
+    }
+
+    public static string UpdateManifest(string directory)
+    {
+        long[] issues = EnumerateIssues(directory).Distinct().OrderBy(issue => issue).ToArray();
+        if (issues.Length == 0) throw new InvalidDataException("没有可写入清单的预测记录");
+        string path = Path.Combine(directory, "manifest.json");
+        AtomicWrite(path, new
+        {
+            status = "success",
+            updated_at = DateTimeOffset.Now.ToString("O"),
+            latest_issue = issues[^1],
+            records = issues.Select(issue => $"{issue}.json").ToArray()
+        });
+        return path;
     }
 
     private static IEnumerable<long> EnumerateIssues(string directory) => Directory.Exists(directory)

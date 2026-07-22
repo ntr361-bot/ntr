@@ -12,6 +12,8 @@ namespace 六合分析软件
         public static string BackupDirectory { get; } = CreateDirectory(Path.Combine(DataDirectory, "Backup"));
         public static string LogDirectory { get; } = CreateDirectory(Path.Combine(DataDirectory, "Logs"));
         public static string CacheDirectory { get; } = CreateDirectory(Path.Combine(DataDirectory, "Cache"));
+        public static string CloudPredictionDirectory { get; } = CreateDirectory(
+            Path.Combine(DataDirectory, "CloudPredictions"));
 
         private static string CreateDirectory(string path)
         {

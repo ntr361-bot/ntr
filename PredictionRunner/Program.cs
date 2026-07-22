@@ -37,6 +37,8 @@ try
     {
         DailyPredictionAutomation.GenerateMissing(outputDirectory, dailyOutputDirectory, issue,
             arguments.ContainsKey("force"), arguments.ContainsKey("dry-run"));
+        if (!arguments.ContainsKey("dry-run"))
+            CloudHistoryAutomation.Export(Path.Combine(repositoryRoot, "site", "data", "history.json"));
         return 0;
     }
 
