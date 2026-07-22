@@ -125,6 +125,7 @@ public static class PredictionAutomation
             ?? AIEngine.GenerateForAutomation(targetPeriod: targetIssue.ToString());
         calculated.PredictPeriod = targetIssue.ToString();
         ValidatePrediction(calculated, targetIssue);
+        AIEngine.SavePredictionHistory(calculated);
 
         DateTimeOffset generatedAt = DateTimeOffset.Now;
         long startIssue = history.Select(h => ParseIssue(h.Period, "历史期号")).Min();
@@ -148,7 +149,14 @@ public static class PredictionAutomation
         Directory.CreateDirectory(options.OutputDirectory);
         AtomicWriteJson(outputFile, document, ValidatePublishedPrediction);
         string latestFile = Path.Combine(options.OutputDirectory, "latest.json");
-        AtomicWriteJson(latestFile, new
+        bool updateLatest = true;
+        if (File.Exists(latestFile))
+        {
+            using JsonDocument currentLatest = JsonDocument.Parse(File.ReadAllBytes(latestFile));
+            updateLatest = !currentLatest.RootElement.TryGetProperty("latest_issue", out JsonElement currentIssue) ||
+                !currentIssue.TryGetInt64(out long currentValue) || currentValue <= targetIssue;
+        }
+        if (updateLatest) AtomicWriteJson(latestFile, new
         {
             latest_issue = targetIssue,
             prediction_file = $"{targetIssue}.json",
@@ -159,6 +167,7 @@ public static class PredictionAutomation
             if (element.GetProperty("latest_issue").GetInt64() != targetIssue)
                 throw new InvalidDataException("latest.json 期号校验失败");
         });
+        else Log("INFO", $"第{targetIssue}期已补齐，网站最新期号保持不变");
 
         Log("INFO", $"输出文件：{outputFile}");
         Log("INFO", "文件校验通过");

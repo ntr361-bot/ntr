@@ -14,6 +14,8 @@ try
         ?? Path.Combine(repositoryRoot, "data");
     string outputDirectory = Environment.GetEnvironmentVariable("PREDICTION_OUTPUT_DIR")
         ?? Path.Combine(repositoryRoot, "site", "data", "predictions");
+    string dailyOutputDirectory = Environment.GetEnvironmentVariable("DAILY_PREDICTION_OUTPUT_DIR")
+        ?? Path.Combine(repositoryRoot, "site", "data", "daily-records");
     Environment.SetEnvironmentVariable("LIUHE_DATA_DIR", dataDirectory);
 
     if (arguments.ContainsKey("refresh-data"))
@@ -31,14 +33,21 @@ try
         issue = parsed;
     }
 
-    PredictionRunResult result = PredictionAutomation.Run(new PredictionRunOptions
+    if (arguments.ContainsKey("generate-all"))
+    {
+        DailyPredictionAutomation.GenerateMissing(outputDirectory, dailyOutputDirectory, issue,
+            arguments.ContainsKey("force"), arguments.ContainsKey("dry-run"));
+        return 0;
+    }
+
+    PredictionAutomation.Run(new PredictionRunOptions
     {
         Issue = issue,
         Force = arguments.ContainsKey("force"),
         DryRun = arguments.ContainsKey("dry-run"),
         OutputDirectory = outputDirectory
     });
-    return result.Status == "skipped" ? 0 : 0;
+    return 0;
 }
 catch (Exception ex)
 {
@@ -64,6 +73,7 @@ static Dictionary<string, string?> ParseArguments(string[] values)
             case "--dry-run": parsed["dry-run"] = null; break;
             case "--refresh-data": parsed["refresh-data"] = null; break;
             case "--refresh-only": parsed["refresh-only"] = null; break;
+            case "--generate-all": parsed["generate-all"] = null; break;
             case "--help":
             case "-h": parsed["help"] = null; break;
             default: throw new ArgumentException($"未知参数：{value}");
@@ -74,5 +84,5 @@ static Dictionary<string, string?> ParseArguments(string[] values)
 
 static void PrintUsage()
 {
-    Console.WriteLine("用法：dotnet run --project PredictionRunner -- [--issue 199] [--force] [--dry-run] [--refresh-data] [--refresh-only]");
+    Console.WriteLine("用法：dotnet run --project PredictionRunner -- [--issue 199] [--force] [--dry-run] [--refresh-data] [--refresh-only] [--generate-all]");
 }

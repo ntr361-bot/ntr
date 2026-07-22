@@ -8,6 +8,28 @@ namespace 六合分析软件
 {
     public class DatabaseHelper
     {
+        private static readonly AsyncLocal<long?> HistoryIssueUpperBound = new();
+
+        public static IDisposable UseHistoryThroughIssue(long issue)
+        {
+            if (issue <= 0) throw new ArgumentOutOfRangeException(nameof(issue));
+            long? previous = HistoryIssueUpperBound.Value;
+            HistoryIssueUpperBound.Value = issue;
+            return new HistoryIssueScope(previous);
+        }
+
+        private sealed class HistoryIssueScope(long? previous) : IDisposable
+        {
+            private bool disposed;
+
+            public void Dispose()
+            {
+                if (disposed) return;
+                disposed = true;
+                HistoryIssueUpperBound.Value = previous;
+            }
+        }
+
         public static string DatabasePath { get; } = ResolveDatabasePath();
 
         private static readonly string connString =
@@ -392,14 +414,20 @@ namespace 六合分析软件
 
             using (SQLiteConnection conn = GetConnection())
             {
+                string issueFilter = HistoryIssueUpperBound.Value.HasValue
+                    ? "WHERE CAST(Period AS INTEGER) <= @maxIssue"
+                    : "";
                 string sql = $@"
                 SELECT Id, Period, Numbers, SpecialNumber, SpecialZodiac, OpenTime, Date, ShengXiao, WebZodiac, CalcZodiac, ZodiacCheck
                 FROM History
+                {issueFilter}
                 ORDER BY CAST(Period AS INTEGER) DESC, Id DESC
                 LIMIT @limit";
 
                 SQLiteCommand cmd = new SQLiteCommand(sql, conn);
                 cmd.Parameters.Add("@limit", System.Data.DbType.Int32).Value = limit;
+                if (HistoryIssueUpperBound.Value is long maxIssue)
+                    cmd.Parameters.AddWithValue("@maxIssue", maxIssue);
 
                 using (SQLiteDataReader reader = cmd.ExecuteReader())
                 {
@@ -463,8 +491,12 @@ namespace 六合分析软件
             {
                 using (SQLiteConnection conn = GetConnection())
                 {
-                    string sql = "SELECT Period FROM History WHERE Period != '' ORDER BY CAST(Period AS INTEGER) DESC LIMIT 1";
+                    string sql = HistoryIssueUpperBound.Value.HasValue
+                        ? "SELECT Period FROM History WHERE Period != '' AND CAST(Period AS INTEGER) <= @maxIssue ORDER BY CAST(Period AS INTEGER) DESC LIMIT 1"
+                        : "SELECT Period FROM History WHERE Period != '' ORDER BY CAST(Period AS INTEGER) DESC LIMIT 1";
                     SQLiteCommand cmd = new SQLiteCommand(sql, conn);
+                    if (HistoryIssueUpperBound.Value is long maxIssue)
+                        cmd.Parameters.AddWithValue("@maxIssue", maxIssue);
                     var result = cmd.ExecuteScalar();
                     return result != null ? result.ToString() : "";
                 }

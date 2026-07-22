@@ -9,6 +9,7 @@ SeedHistory();
 
 var tests = new (string Name, Action Run)[]
 {
+    ("自动化预测写入历史记录", AutomationRecordsPredictionHistory),
     ("解析有效开奖 JSON", ParseValidJson),
     ("拒绝失败 API 响应", RejectFailedResponse),
     ("号码统计正确", CountNumbers),
@@ -23,6 +24,9 @@ var tests = new (string Name, Action Run)[]
     ("latest.json 更新", LatestJsonUpdates),
     ("重复期号检测", DuplicateIssueFails),
     ("dry-run 不修改文件", DryRunDoesNotWrite),
+    ("历史数据截止期生效", HistoryCutoffWorks),
+    ("特码规律生成六肖", ZodiacRuleGeneratesSix),
+    ("全功能dry-run不写文件", DailyDryRunDoesNotWrite),
     ("有效抓取数据校验", ValidCrawlDataPasses),
     ("损坏抓取数据拒绝", InvalidCrawlDataFails)
 };
@@ -101,6 +105,18 @@ void ExplicitIssue()
     Assert(result.Issue == 110, "应使用指定期号");
 }
 
+void AutomationRecordsPredictionHistory()
+{
+    string output = FreshDirectory();
+    PredictionAutomation.Run(new() { OutputDirectory = output, Force = true }, FakePrediction);
+    bool recorded = DatabaseHelper.GetPredictionHistory(int.MaxValue).Any(record =>
+        record.Issue == "103" &&
+        record.AnalysisPeriods == 3 &&
+        record.PredictZodiac == "马,蛇,龙" &&
+        record.Top6Zodiac == "马,蛇,龙,兔,虎,牛");
+    Assert(recorded, "自动化预测应写入 PredictionHistory");
+}
+
 void ExistingFileSkips()
 {
     string output = FreshDirectory();
@@ -156,6 +172,30 @@ void DryRunDoesNotWrite()
     string output = FreshDirectory();
     PredictionAutomation.Run(new() { OutputDirectory = output, DryRun = true });
     Assert(!Directory.EnumerateFileSystemEntries(output).Any(), "dry-run 不应写文件");
+}
+
+void HistoryCutoffWorks()
+{
+    using (DatabaseHelper.UseHistoryThroughIssue(101))
+    {
+        Assert(DatabaseHelper.GetLatestPeriod() == "101", "截止期后最新期号应为101");
+        Assert(DatabaseHelper.GetLatestHistory(50).Count == 2, "截止期不应包含未来数据");
+    }
+    Assert(DatabaseHelper.GetLatestPeriod() == "102", "离开截止范围后应恢复全部数据");
+}
+
+void ZodiacRuleGeneratesSix()
+{
+    ZodiacRulePrediction result = ZodiacRulePredictionService.Predict(103);
+    Assert(result.SourceIssue == "102", "特码规律应使用最新已开奖期");
+    Assert(result.Zodiacs.Count == 6, "特码规律应生成6个不重复生肖");
+}
+
+void DailyDryRunDoesNotWrite()
+{
+    string output = FreshDirectory();
+    string file = DailyPredictionAutomation.Generate(103, output, dryRun: true);
+    Assert(!File.Exists(file), "全功能dry-run不应写入记录");
 }
 
 void ValidCrawlDataPasses()
