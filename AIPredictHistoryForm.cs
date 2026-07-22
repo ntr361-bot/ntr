@@ -125,6 +125,7 @@ namespace 六合分析软件
             table.Columns["Top6HitResult"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
 
             table.CellFormatting += Table_CellFormatting;
+            table.CellPainting += Table_CellPainting;
 
             this.Controls.Add(table);
         }
@@ -158,9 +159,90 @@ namespace 六合分析软件
             }
         }
 
+        private void Table_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex != table.Columns["PredictNumber"]!.Index)
+                return;
+
+            string text = Convert.ToString(e.FormattedValue) ?? string.Empty;
+            string actualText = Convert.ToString(table.Rows[e.RowIndex].Cells["ActualNumber"].Value) ?? string.Empty;
+            if (!int.TryParse(actualText, out int actualNumber))
+                return;
+
+            char[] separators = { ',', '，', '、', ' ', ';', '；' };
+            string[] numbers = text.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+            bool numberHit = numbers.Any(value =>
+                int.TryParse(value.Trim(), out int number) && number == actualNumber);
+            if (!numberHit)
+                return;
+
+            e.PaintBackground(e.CellBounds, true);
+            e.Paint(e.CellBounds, DataGridViewPaintParts.Border);
+
+            bool selected = (e.State & DataGridViewElementStates.Selected) != 0;
+            Color normalColor = selected ? e.CellStyle.SelectionForeColor : e.CellStyle.ForeColor;
+            Color hitColor = selected ? Color.Yellow : Color.FromArgb(0, 105, 45);
+            Font normalFont = e.CellStyle.Font ?? table.Font;
+            TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
+            int left = e.CellBounds.Left + 3;
+            int right = e.CellBounds.Right - 3;
+            int x = left;
+            int y = e.CellBounds.Top + 2;
+            int lineHeight = Math.Max(
+                TextRenderer.MeasureText("00", normalFont, Size.Empty, flags).Height,
+                TextRenderer.MeasureText("00", ResultFont, Size.Empty, flags).Height);
+
+            for (int i = 0; i < numbers.Length; i++)
+            {
+                string numberText = numbers[i].Trim();
+                string prefix = i == 0 ? string.Empty : ",";
+                bool isHit = int.TryParse(numberText, out int number) && number == actualNumber;
+                Font numberFont = isHit ? ResultFont : normalFont;
+                int prefixWidth = TextRenderer.MeasureText(prefix, normalFont, Size.Empty, flags).Width;
+                int numberWidth = TextRenderer.MeasureText(numberText, numberFont, Size.Empty, flags).Width;
+
+                if (x > left && x + prefixWidth + numberWidth > right)
+                {
+                    x = left;
+                    y += lineHeight;
+                    prefix = string.Empty;
+                    prefixWidth = 0;
+                }
+
+                if (prefix.Length > 0)
+                {
+                    TextRenderer.DrawText(e.Graphics, prefix, normalFont, new Point(x, y), normalColor, flags);
+                    x += prefixWidth;
+                }
+
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    numberText,
+                    numberFont,
+                    new Point(x, y),
+                    isHit ? hitColor : normalColor,
+                    flags);
+                x += numberWidth;
+            }
+
+            e.Handled = true;
+        }
+
         private void LoadData()
         {
             table.Rows.Clear();
+
+            Color[] issueColors =
+            {
+                Color.FromArgb(255, 235, 130),
+                Color.FromArgb(184, 222, 255),
+                Color.FromArgb(190, 235, 190),
+                Color.FromArgb(246, 195, 214),
+                Color.FromArgb(218, 201, 247),
+                Color.FromArgb(255, 207, 160)
+            };
+            var issueColorIndexes = new System.Collections.Generic.Dictionary<string, int>(StringComparer.Ordinal);
+            int nextIssueColor = 0;
 
             var records = DatabaseHelper.GetPredictionHistory(100);
             var (total, hits, top6Hits, rate, top6Rate) = DatabaseHelper.GetAIPredictStats();
@@ -176,7 +258,7 @@ namespace 六合分析软件
             {
                 string hitResult = string.IsNullOrEmpty(r.HitResult) ? "未开奖" : r.HitResult;
 
-                table.Rows.Add(new object[]
+                int rowIndex = table.Rows.Add(new object[]
                 {
                     r.Issue,
                     r.AnalysisPeriods > 0 ? $"{r.AnalysisPeriods}期" : "旧记录",
@@ -190,6 +272,24 @@ namespace 六合分析软件
                     r.ModelVersion,
                     r.PredictTime
                 });
+
+                string issueKey = Convert.ToString(r.Issue) ?? string.Empty;
+                if (!issueColorIndexes.TryGetValue(issueKey, out int colorIndex))
+                {
+                    colorIndex = nextIssueColor++ % issueColors.Length;
+                    issueColorIndexes[issueKey] = colorIndex;
+                }
+                table.Rows[rowIndex].DefaultCellStyle.BackColor = issueColors[colorIndex];
+                table.Rows[rowIndex].Cells["Issue"].Style.BackColor = ControlPaint.Dark(issueColors[colorIndex], 0.08f);
+                table.Rows[rowIndex].Cells["Issue"].Style.Font = new Font("微软雅黑", 9, FontStyle.Bold);
+            }
+
+            for (int rowIndex = 0; rowIndex < table.Rows.Count - 1; rowIndex++)
+            {
+                string currentIssue = Convert.ToString(table.Rows[rowIndex].Cells["Issue"].Value) ?? string.Empty;
+                string nextIssue = Convert.ToString(table.Rows[rowIndex + 1].Cells["Issue"].Value) ?? string.Empty;
+                if (!string.Equals(currentIssue, nextIssue, StringComparison.Ordinal))
+                    table.Rows[rowIndex].DividerHeight = 3;
             }
 
             if (records.Count == 0)
