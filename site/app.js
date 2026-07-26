@@ -1,6 +1,7 @@
 const state = document.querySelector('#state');
 const panel = document.querySelector('#prediction');
 const refreshButton = document.querySelector('#refresh');
+const V6_API = 'https://smart-ledger-2026.ntr133.chatgpt.site/api/v6-sync';
 
 function text(id, value) {
   document.querySelector(`#${id}`).textContent = value;
@@ -30,14 +31,16 @@ function tokenGroup(values, className = '') {
 
 function renderAiPeriods(results) {
   const parent = document.querySelector('#ai-periods');
-  const periods = ['50', '100', '200', '500'];
+  const periods = ['50', '100', '200', 'all'];
   parent.replaceChildren(...periods.map(period => {
     const result = results?.[period];
     if (!result) throw new Error(`缺少 ${period} 期AI预测`);
     const block = document.createElement('article');
     block.className = 'period-result';
     const heading = document.createElement('h3');
-    heading.textContent = `${period}期`;
+    heading.textContent = period === 'all'
+      ? `全部历史（${result.analysis_periods}期）`
+      : `${period}期`;
     const meta = document.createElement('p');
     meta.className = 'period-meta';
     meta.textContent = `${result.confidence || '未标注可信度'} · ${result.best_model || '综合模型'}`;
@@ -73,7 +76,8 @@ function renderRanking(id, values, scoreKey) {
 }
 
 async function fetchJson(path) {
-  const response = await fetch(`${path}?v=${Date.now()}`, { cache: 'no-store' });
+  const separator = path.includes('?') ? '&' : '?';
+  const response = await fetch(`${path}${separator}v=${Date.now()}`, { cache: 'no-store' });
   if (!response.ok) throw new Error(`${path} 返回 HTTP ${response.status}`);
   return response.json();
 }
@@ -85,14 +89,11 @@ async function loadPrediction() {
   state.hidden = false;
   panel.hidden = true;
   try {
-    const latest = await fetchJson('data/daily-records/latest.json');
-    if (latest.status === 'generating') {
-      state.textContent = '预测正在生成，请稍后刷新。';
-      return;
+    const latest = await fetchJson(`${V6_API}/manifest`);
+    if (latest.status !== 'success' || !latest.latest_issue) {
+      throw new Error('V6.3 最新预测清单无效');
     }
-    if (latest.status === 'failed') throw new Error('生成失败，请查看 GitHub Actions 运行日志');
-    if (!latest.prediction_file) throw new Error('latest.json 缺少 prediction_file');
-    const result = await fetchJson(`data/daily-records/${latest.prediction_file}`);
+    const result = await fetchJson(`${V6_API}/prediction?file=${latest.latest_issue}.json`);
     if (result.status !== 'success' || !result.validation?.passed) {
       throw new Error('最新预测文件状态无效');
     }
