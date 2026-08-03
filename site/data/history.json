@@ -1,7 +1,7 @@
 {
   "status": "success",
-  "updated_at": "2026-08-02T17:46:59.6478239\u002B00:00",
-  "latest_issue": "2026214",
+  "updated_at": "2026-08-03T19:11:00.9328898\u002B00:00",
+  "latest_issue": "2026215",
   "records": [
     {
       "issue": "2025063",
@@ -4138,6 +4138,14 @@
       "special_zodiac": "\u5154",
       "open_time": "2026-08-02 21:35:30",
       "date": "2026-08-02 21:35:30"
+    },
+    {
+      "issue": "2026215",
+      "numbers": "193830130111",
+      "special_number": "14",
+      "special_zodiac": "\u86C7",
+      "open_time": "2026-08-03 21:35:31",
+      "date": "2026-08-03 21:35:31"
     }
   ]
 }
