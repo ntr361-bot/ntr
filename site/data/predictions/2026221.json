@@ -1,0 +1,57 @@
+{
+  "issue": 2026221,
+  "generated_at": "2026-08-08T15:02:11.9889835\u002B00:00",
+  "status": "success",
+  "model_version": "AI\u751F\u8096\u9884\u6D4B V6.1",
+  "data_range": {
+    "start_issue": 2025063,
+    "end_issue": 2026220,
+    "sample_count": 523
+  },
+  "prediction": {
+    "zodiacs": [
+      "\u9A6C",
+      "\u732A",
+      "\u5154"
+    ],
+    "numbers": [
+      1,
+      37,
+      25,
+      13,
+      49,
+      44,
+      16,
+      28
+    ],
+    "wave_colors": [],
+    "recommendations": [
+      "\u9A6C",
+      "\u732A",
+      "\u5154",
+      "\u864E",
+      "\u9F20",
+      "\u86C7"
+    ]
+  },
+  "validation": {
+    "passed": true,
+    "warnings": []
+  },
+  "analysis_periods": 500,
+  "confidence": "\u9AD8",
+  "best_model": "\u51B7\u70ED\u002B\u8D70\u52BF\u002B\u5468\u671F\u6A21\u578B",
+  "top3": [
+    "\u9A6C",
+    "\u732A",
+    "\u5154"
+  ],
+  "top6": [
+    "\u9A6C",
+    "\u732A",
+    "\u5154",
+    "\u864E",
+    "\u9F20",
+    "\u86C7"
+  ]
+}
